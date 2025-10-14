@@ -1,124 +1,262 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
-// Librerías necesarias para C++
-#include <iostream>
-#include <cstdlib>
-#include <cstring>
-using namespace std;
+
+#define MAX_DOC_TYPE 110
+#define MAX_APELLIDO 20
+#define DOC_CC "CC"
+#define DOC_TI "TI"
+#define DOC_PA "PA"
 
 // Estructura para cada pasajero (nodo de la lista)
-struct Pasajero {
-    char tipo_documento[10];
-    char apellido[30];
-    Pasajero *siguiente;
-};
-    // ...existing code...
+typedef struct pasajero {
+    char tipo_documento[MAX_DOC_TYPE];
+    char apellido[MAX_APELLIDO];
+    struct pasajero *siguiente;
+} Pasajero;
 
-    int main() {
-        int capacidad, opcion;
-        int total = 0;
-        Pasajero *inicio = NULL, *fin = NULL, *nuevo = NULL, *aux = NULL; // Solo punteros
+// Estructura para la lista (Cola FIFO)
+typedef struct {
+    Pasajero *inicio; // Frente (head) - para abordar
+    Pasajero *fin;    // Final (tail) - para registrar
+    int total_registrados; // Total de pasajeros en la lista de espera
+} ColaPasajeros;
 
-        cout << "Ingrese la capacidad maxima del avion" << endl;
-        cin >> capacidad;
 
-        int limite = capacidad + (capacidad * 0.10);
 
-        do {
-            cout << endl << "MENU AEROLINEA" << endl;
-            cout << "1 Registrar pasajero FIFO" << endl;
-            cout << "2 Mostrar lista de pasajeros registrados" << endl;
-            cout << "3 Mostrar orden de abordaje y lista de espera" << endl;
-            cout << "4 Salir" << endl;
-            cout << "Seleccione una opcion" << endl;
-            cin >> opcion;
+// Función auxiliar para limpiar el buffer después de scanf
+void limpiar_buffer() {
+    int c;
+    while ((c = getchar()) != '\n' && c != EOF);
+}
 
-            switch (opcion) {
-                case 1:
-                    if (total >= limite) {
-                        cout << "Ya se alcanzo el limite maximo de pasajeros " << limite << endl;
-                    } else {
-                        nuevo = (Pasajero*) malloc(sizeof(Pasajero));
-                        if (nuevo == NULL) {
-                            cout << "Error de memoria" << endl;
-                            break;
-                        }
-                        cout << "Ingrese tipo de documento CC TI PA" << endl;
-                        cin >> nuevo->tipo_documento;
-                        cout << "Ingrese primer apellido" << endl;
-                        cin >> nuevo->apellido;
-                        nuevo->siguiente = NULL;
+// Inicializar la cola
+void inicializar_cola(ColaPasajeros *c) {
+    c->inicio = NULL;
+    c->fin = NULL;
+    c->total_registrados = 0;
+}
 
-                        // Agregar el nuevo pasajero al final de la lista
-                        if (inicio == NULL) {
-                            inicio = nuevo;
-                            fin = nuevo;
-                        } else {
-                            fin->siguiente = nuevo;
-                            fin = nuevo;
-                        }
-                        total++;
-                        cout << "Pasajero registrado exitosamente " << total << " de " << limite << endl;
-                        cout << "Turno asignado FIFO " << total << endl;
-                    }
-                    break;
 
-                case 2:
-                    if (total == 0) {
-                        cout << "No hay pasajeros registrados" << endl;
-                    } else {
-                        cout << "LISTA DE PASAJEROS REGISTRADOS FIFO" << endl;
-                        int turno = 1;
-                        aux = inicio; // Usar auxiliar para recorrer
-                        while (aux != NULL) {
-                            cout << "Turno " << turno << " " << aux->tipo_documento << " " << aux->apellido << endl;
-                            turno++;
-                            aux = aux->siguiente;
-                        }
-                    }
-                    break;
 
-                case 3:
-                    if (total == 0) {
-                        cout << "No hay pasajeros registrados" << endl;
-                    } else {
-                        cout << "PASAJEROS QUE ABORDAN FIFO" << endl;
-                        int turno = 1;
-                        aux = inicio; // Usar auxiliar para recorrer
-                        for (int i = 0; i < capacidad && aux != NULL; i++) {
-                            cout << "Turno " << turno << " " << aux->tipo_documento << " " << aux->apellido << endl;
-                            turno++;
-                            aux = aux->siguiente;
-                        }
-                        if (total > capacidad) {
-                            cout << "LISTA DE ESPERA FIFO" << endl;
-                            for (int i = capacidad; i < total && aux != NULL; i++) {
-                                cout << "Turno " << turno << " " << aux->tipo_documento << " " << aux->apellido << endl;
-                                turno++;
-                                aux = aux->siguiente;
-                            }
-                        }
-                    }
-                    break;
+// Registrar pasajero (Encolar / Agregar al final - FIFO)
+// Retorna 1 si es exitoso, 0 si hay error de memoria
+int registrar_pasajero(ColaPasajeros *c, const char *tipo_doc, const char *apellido) {
+    Pasajero *nuevo = (Pasajero *)malloc(sizeof(Pasajero));
+    if (nuevo == NULL) {
+        return 0; // Error de memoria
+    }
 
-                case 4:
-                    cout << "Saliendo del programa" << endl;
-                    break;
+    // Copiar los datos (usando strncpy para seguridad)
+    strncpy(nuevo->tipo_documento, tipo_doc, sizeof(nuevo->tipo_documento) - 1);
+    nuevo->tipo_documento[sizeof(nuevo->tipo_documento) - 1] = '\0';
+    strncpy(nuevo->apellido, apellido, sizeof(nuevo->apellido) - 1);
+    nuevo->apellido[sizeof(nuevo->apellido) - 1] = '\0';
+    nuevo->siguiente = NULL;
 
-                default:
-                    cout << "Opcion invalida" << endl;
-                    break;
-            }
+    // Enlazar el nodo al final de la cola
+    if (c->inicio == NULL) {
+        c->inicio = nuevo;
+        c->fin = nuevo;
+    } else {
+        c->fin->siguiente = nuevo;
+        c->fin = nuevo;
+    }
 
-        } while (opcion != 4);
+    c->total_registrados++;
+    return 1;
+}
 
-    // Liberar memoria
-    // Liberar memoria usando auxiliar
-    aux = inicio;
-    while (aux != NULL) {
-        Pasajero* temp = aux;
-        aux = aux->siguiente;
+// Abordar pasajero (Desencolar / Eliminar del frente - FIFO)
+// Retorna el nodo del pasajero abordado o NULL si la cola está vacía
+Pasajero *abordar_pasajero(ColaPasajeros *c) {
+    if (c->inicio == NULL) {
+        return NULL;
+    }
+
+    Pasajero *abordado = c->inicio;
+    c->inicio = c->inicio->siguiente;
+
+    if (c->inicio == NULL) {
+        c->fin = NULL; // La lista quedó vacía
+    }
+
+    c->total_registrados--;
+    abordado->siguiente = NULL;
+    return abordado;
+}
+
+// Mostrar la lista de pasajeros registrados (en espera)
+void mostrar_lista(ColaPasajeros *c) {
+    if (c->inicio == NULL) {
+        printf("No hay pasajeros registrados en espera.\n");
+        return;
+    }
+
+    printf("\n--- LISTA DE PASAJEROS REGISTRADOS (FIFO) ---\n");
+    Pasajero *actual = c->inicio;
+    int turno = 1;
+
+    while (actual != NULL) {
+        printf("Turno %3d | Doc: %s | Apellido: %s\n",
+               turno, actual->tipo_documento, actual->apellido);
+        turno++;
+        actual = actual->siguiente;
+    }
+}
+
+// Liberar toda la memoria al salir
+void liberar_memoria(ColaPasajeros *c) {
+    Pasajero *actual = c->inicio;
+    while (actual != NULL) {
+        Pasajero *temp = actual;
+        actual = actual->siguiente;
         free(temp);
     }
+    c->inicio = NULL;
+    c->fin = NULL;
+    c->total_registrados = 0;
+}
+
+
+// Función Principal (Main)
+
+
+int main() {
+    ColaPasajeros cola;
+    inicializar_cola(&cola);
+
+    int capacidad;
+    int opcion;
+    int abordados = 0; // Contador de pasajeros que ya subieron al avión
+
+    printf(" SISTEMA DE GESTIÓN DE VUELO (LENGUAJE C) \n");
+    printf("Ingrese la capacidad maxima del avion: ");
+
+    if (scanf("%d", &capacidad) != 1 || capacidad <= 0) {
+        printf("Error: Capacidad no valida.\n");
+        return 1;
+    }
+    limpiar_buffer(); // Limpiar el buffer
+
+    int limite = capacidad + (int)(capacidad * 0.10); // Límite con overbooking
+
+    printf("Capacidad real: %d asientos.\n", capacidad);
+    printf("Limite de registro (con 10%% overbooking): %d\n", limite);
+
+    do {
+        printf("\n------ MENU AEROLINEA ------\n");
+        printf("1) Registrar pasajero (FIFO)\n");
+        printf("2) Mostrar pasajeros registrados (Lista de espera)\n");
+        printf("3) Abordar siguiente pasajero (FIFO)\n");
+        printf("4) Abordar a todos hasta llenar el avion\n");
+        printf("5) Mostrar estado del vuelo\n");
+        printf("6) Salir\n");
+        printf("Seleccione una opcion: ");
+
+        if (scanf("%d", &opcion) != 1) {
+            printf("Error: Entrada no valida. Intente de nuevo.\n");
+            limpiar_buffer();
+            continue;
+        }
+        limpiar_buffer();
+
+        switch (opcion) {
+            case 1: { // Registrar Pasajero
+                if (cola.total_registrados >= limite) {
+                    printf(" Ya se alcanzo el limite maximo de pasajeros (%d).\n", limite);
+                } else {
+                    char tipo_doc[MAX_DOC_TYPE];
+                    char apellido[MAX_APELLIDO];
+                    
+                    // Nota: Se usa scanf("%s") que es simple, pero no maneja espacios.
+                    printf("Ingrese tipo de documento (%s, %s, %s): ", DOC_CC, DOC_TI, DOC_PA); // Usando las constantes
+                    scanf("%s", tipo_doc);
+                    limpiar_buffer ();
+
+                    printf("Ingrese primer apellido: ");
+                    scanf("%s", apellido);
+                    limpiar_buffer();
+
+                    if (registrar_pasajero(&cola, tipo_doc, apellido)) {
+                        printf(" Pasajero registrado exitosamente. Turno asignado: %d.\n", cola.total_registrados);
+                    } else {
+                        printf(" Error de memoria al registrar.\n");
+                    }
+                }
+                break;
+            }
+
+            case 2: // Mostrar Lista de Espera
+                mostrar_lista(&cola);
+                break;
+
+            case 3: { // Abordar Siguiente Pasajero
+                if (abordados >= capacidad) {
+                    printf(" El avion ya esta lleno (%d/%d).\n", abordados, capacidad);
+                } else {
+                    Pasajero *p = abordar_pasajero(&cola);
+                    if (p != NULL) {
+                        abordados++;
+                        printf(" Abordando: %s | %s. Asientos ocupados: %d/%d\n", 
+                               p->tipo_documento, p->apellido, abordados, capacidad);
+                        free(p); // Liberar la memoria del nodo
+                    } else {
+                        printf("No hay pasajeros en espera para abordar.\n");
+                    }
+                }
+                break;
+            }
+
+            case 4: { // Abordar a todos hasta llenar
+                int count = 0;
+                while (abordados < capacidad) {
+                    Pasajero *p = abordar_pasajero(&cola);
+                    if (p == NULL)
+                        break;
+                    
+                    abordados++;
+                    count++;
+                    printf(" Abordando: %s  %s. Asientos ocupados: %d/%d\n", 
+                           p->tipo_documento, p->apellido, abordados, capacidad);
+                    free(p);
+                }
+                
+                if (count == 0 && abordados < capacidad)
+                    printf("No hay pasajeros en espera para abordar.\n");
+                else if (count > 0)
+                    printf(" %d pasajeros abordaron. Total en el avion: %d/%d\n", count, abordados, capacidad);
+                else if (abordados == capacidad)
+                    printf("El avion ya esta lleno (%d/%d).\n", capacidad, capacidad);
+                
+                break;
+            }
+            
+            case 5: // Mostrar estado del vuelo
+                printf("\n--- ESTADO ACTUAL DEL VUELO ---\n");
+                printf("Capacidad: %d asientos\n", capacidad);
+                printf("Maximo de tickets (Overbooking): %d\n", limite);
+                printf("Tickets vendidos (Registrados total): %d\n", cola.total_registrados + abordados);
+                printf("Pasajeros Abordados (En el avion): %d\n", abordados);
+                printf("Pasajeros En Espera (Lista FIFO): %d\n", cola.total_registrados);
+                break;
+
+            case 6:
+                printf("Saliendo del programa...\n");
+                break;
+
+            default:
+                printf("Opcion invalida. Intente de nuevo.\n");
+                break;
+        }
+
+    } while (opcion != 6);
+
+    // Liberar memoria antes de salir
+    liberar_memoria(&cola);
+    printf("Memoria liberada. ¡Adios! \n");
 
     return 0;
 }
